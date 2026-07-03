@@ -1,0 +1,369 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  RECRUITER
+}
+
+enum CompanyStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum CandidateStatus {
+  ACTIVE
+  BLOCKED
+}
+
+enum CandidateGender {
+  MALE
+  FEMALE
+}
+
+enum GenderRequirement {
+  MALE
+  FEMALE
+  ANY
+}
+
+enum EducationLevel {
+  PRIMARY_MIDDLE
+  HIGH_VOCATIONAL
+  COLLEGE
+  BACHELOR
+}
+
+enum EmploymentMode {
+  FULL_TIME
+  SHORT_TERM
+  TEMPORARY
+  PART_TIME
+}
+
+enum SalaryUnit {
+  MONTH
+  DAY
+  HOUR
+}
+
+enum SettlementCycle {
+  MONTHLY
+  WEEKLY
+  DAILY
+  HOURLY
+}
+
+enum AuditStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  OFFLINE
+}
+
+enum ApplicationStatus {
+  APPLIED
+  REVIEWED
+  INTERVIEWING
+  ONBOARDED
+  REJECTED
+}
+
+enum CommissionStatus {
+  PENDING
+  SETTLED
+  CANCELED
+}
+
+enum NotificationChannel {
+  SMS
+  WECHAT_SUBSCRIBE
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum SenderType {
+  ADMIN
+  CANDIDATE
+  SYSTEM
+}
+
+model AdminUser {
+  id                  String             @id @default(cuid())
+  email               String             @unique
+  passwordHash        String             @map("password_hash")
+  name                String
+  phone               String?
+  wechatId            String?            @map("wechat_id")
+  role                AdminRole          @default(RECRUITER)
+  isActive            Boolean            @default(true) @map("is_active")
+  jobsCreated         Job[]              @relation("JobCreator")
+  jobsReviewed        Job[]              @relation("JobReviewer")
+  applicationsReviewed Application[]     @relation("ApplicationReviewer")
+  recruiterConversations Conversation[]  @relation("RecruiterConversations")
+  sentMessages        Message[]          @relation("AdminMessages")
+  auditLogs           AuditLog[]         @relation("AuditActor")
+  commissionConfirmed CommissionRecord[] @relation("CommissionConfirmer")
+  sessions            AdminSession[]
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
+
+  @@map("admin_user")
+}
+
+model AdminSession {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique @map("token_hash")
+  adminUserId String   @map("admin_user_id")
+  adminUser  AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime  @map("expires_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([adminUserId])
+  @@map("admin_session")
+}
+
+model HiringCompany {
+  id           String             @id @default(cuid())
+  name         String             @unique
+  contactName  String?            @map("contact_name")
+  contactPhone String?            @map("contact_phone")
+  district     String?
+  location     String?
+  notes        String?
+  status       CompanyStatus      @default(ACTIVE)
+  jobs         Job[]
+  commissions  CommissionRecord[]
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+
+  @@map("hiring_company")
+}
+
+model CandidateUser {
+  id             String            @id @default(cuid())
+  openId         String            @unique @map("open_id")
+  unionId        String?           @unique @map("union_id")
+  sessionKey     String?           @map("session_key")
+  phone          String?
+  wechatNickname String?           @map("wechat_nickname")
+  avatarUrl      String?           @map("avatar_url")
+  status         CandidateStatus   @default(ACTIVE)
+  profile        CandidateProfile?
+  applications   Application[]
+  favorites      JobFavorite[]
+  conversations  Conversation[]
+  sentMessages   Message[]         @relation("CandidateMessages")
+  notifications  NotificationLog[]
+  commissions    CommissionRecord[]
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  @@map("candidate_user")
+}
+
+model CandidateProfile {
+  id                String          @id @default(cuid())
+  candidateId       String          @unique @map("candidate_id")
+  candidate         CandidateUser   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  realName          String?         @map("real_name")
+  gender            CandidateGender?
+  age               Int?
+  idCardEncrypted   String?         @map("id_card_encrypted")
+  education         EducationLevel?
+  currentDistrict   String?         @map("current_district")
+  expectedIndustry  String?         @map("expected_industry")
+  expectedMode      EmploymentMode? @map("expected_mode")
+  expectedSalaryMin Int?            @map("expected_salary_min")
+  expectedDistricts Json?           @map("expected_districts")
+  workExperience    String?         @map("work_experience")
+  certificates      Json?
+  accommodationNeeded Boolean       @default(false) @map("accommodation_needed")
+  wechatId          String?         @map("wechat_id")
+  profileCompletedAt DateTime?      @map("profile_completed_at")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  @@map("candidate_profile")
+}
+
+model Job {
+  id                      String            @id @default(cuid())
+  title                   String
+  industry                String
+  district                String
+  location                String
+  employmentMode          EmploymentMode    @map("employment_mode")
+  salaryMin               Int               @map("salary_min")
+  salaryMax               Int               @map("salary_max")
+  salaryUnit              SalaryUnit        @default(MONTH) @map("salary_unit")
+  settlementCycle         SettlementCycle   @map("settlement_cycle")
+  ageMin                  Int               @map("age_min")
+  ageMax                  Int               @map("age_max")
+  genderRequirement       GenderRequirement @default(ANY) @map("gender_requirement")
+  educationRequirement    EducationLevel?   @map("education_requirement")
+  experienceRequirement   String?           @map("experience_requirement")
+  certificateRequirements Json?             @map("certificate_requirements")
+  meals                   String?
+  accommodation           String?
+  shifts                  String?
+  benefits                Json?
+  headcount               Int
+  remainingCount          Int               @map("remaining_count")
+  deadline                DateTime
+  description             String
+  highlight               String?
+  companyId               String            @map("company_id")
+  company                 HiringCompany     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdById             String            @map("created_by_id")
+  createdBy               AdminUser         @relation("JobCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  auditStatus             AuditStatus       @default(PENDING) @map("audit_status")
+  reviewNote              String?           @map("review_note")
+  reviewedById            String?           @map("reviewed_by_id")
+  reviewedBy              AdminUser?        @relation("JobReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  publishedAt             DateTime?         @map("published_at")
+  applications            Application[]
+  favorites               JobFavorite[]
+  conversations           Conversation[]
+  commissions             CommissionRecord[]
+  auditLogs               AuditLog[]
+  createdAt               DateTime          @default(now()) @map("created_at")
+  updatedAt               DateTime          @updatedAt @map("updated_at")
+
+  @@index([auditStatus, district])
+  @@index([industry, employmentMode])
+  @@map("job")
+}
+
+model Application {
+  id              String            @id @default(cuid())
+  candidateId     String            @map("candidate_id")
+  candidate       CandidateUser     @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  jobId           String            @map("job_id")
+  job             Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  status          ApplicationStatus @default(APPLIED)
+  note            String?
+  reviewedById    String?           @map("reviewed_by_id")
+  reviewedBy      AdminUser?        @relation("ApplicationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  appliedAt       DateTime          @default(now()) @map("applied_at")
+  statusUpdatedAt DateTime          @default(now()) @map("status_updated_at")
+  onboardedAt     DateTime?         @map("onboarded_at")
+  commission      CommissionRecord?
+  notifications   NotificationLog[]
+
+  @@unique([candidateId, jobId])
+  @@index([status, appliedAt])
+  @@map("application")
+}
+
+model JobFavorite {
+  id         String        @id @default(cuid())
+  candidateId String       @map("candidate_id")
+  jobId      String        @map("job_id")
+  candidate  CandidateUser @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  job        Job           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  @@unique([candidateId, jobId])
+  @@map("job_favorite")
+}
+
+model Conversation {
+  id            String        @id @default(cuid())
+  candidateId   String        @map("candidate_id")
+  candidate     CandidateUser @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  jobId         String?       @map("job_id")
+  job           Job?          @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  recruiterId   String        @map("recruiter_id")
+  recruiter     AdminUser     @relation("RecruiterConversations", fields: [recruiterId], references: [id], onDelete: Restrict)
+  lastMessageAt DateTime?     @map("last_message_at")
+  messages      Message[]
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  @@unique([candidateId, jobId, recruiterId])
+  @@map("conversation")
+}
+
+model Message {
+  id                String        @id @default(cuid())
+  conversationId    String        @map("conversation_id")
+  conversation      Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderType        SenderType    @map("sender_type")
+  adminSenderId     String?       @map("admin_sender_id")
+  adminSender       AdminUser?    @relation("AdminMessages", fields: [adminSenderId], references: [id], onDelete: SetNull)
+  candidateSenderId String?       @map("candidate_sender_id")
+  candidateSender   CandidateUser? @relation("CandidateMessages", fields: [candidateSenderId], references: [id], onDelete: SetNull)
+  content           String
+  imageUrl          String?       @map("image_url")
+  readAt            DateTime?     @map("read_at")
+  createdAt         DateTime      @default(now()) @map("created_at")
+
+  @@index([conversationId, createdAt])
+  @@map("message")
+}
+
+model NotificationLog {
+  id           String              @id @default(cuid())
+  channel      NotificationChannel
+  status       NotificationStatus  @default(PENDING)
+  templateKey  String              @map("template_key")
+  recipient    String
+  payload      Json
+  errorMessage String?             @map("error_message")
+  candidateId  String?             @map("candidate_id")
+  candidate    CandidateUser?      @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  applicationId String?            @map("application_id")
+  application  Application?        @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  createdAt    DateTime            @default(now()) @map("created_at")
+
+  @@map("notification_log")
+}
+
+model CommissionRecord {
+  id            String           @id @default(cuid())
+  applicationId String           @unique @map("application_id")
+  application   Application      @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  companyId      String          @map("company_id")
+  company       HiringCompany    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  jobId         String           @map("job_id")
+  job           Job              @relation(fields: [jobId], references: [id], onDelete: Restrict)
+  candidateId   String           @map("candidate_id")
+  candidate     CandidateUser    @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  amount        Int
+  status        CommissionStatus @default(PENDING)
+  confirmedById String?          @map("confirmed_by_id")
+  confirmedBy   AdminUser?       @relation("CommissionConfirmer", fields: [confirmedById], references: [id], onDelete: SetNull)
+  settledAt     DateTime?        @map("settled_at")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  @@map("commission_record")
+}
+
+model AuditLog {
+  id         String    @id @default(cuid())
+  entityType String    @map("entity_type")
+  entityId   String    @map("entity_id")
+  action     String
+  note       String?
+  metadata   Json?
+  jobId      String?   @map("job_id")
+  job        Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  actorId    String?   @map("actor_id")
+  actor      AdminUser? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([entityType, entityId])
+  @@map("audit_log")
+}
